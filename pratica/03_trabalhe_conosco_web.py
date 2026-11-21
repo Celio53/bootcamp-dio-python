@@ -6,67 +6,46 @@ from datetime import datetime
 
 # ==============================================================================
 # PROJETO 03: Portal Web "Trabalhe Conosco" - Captação de Motoristas & Manobristas
+# Regras Atualizadas: Pontuação na CNH e Disponibilidade de Escala (Madrugada/FDS)
 # ==============================================================================
 
 DIRETORIO_SCRIPT = os.path.dirname(os.path.abspath(__file__))
 ARQUIVO_PLANILHA = os.path.join(DIRETORIO_SCRIPT, "candidatos_motoristas.csv")
 
 def salvar_na_planilha(candidato):
-    """Garante cabeçalho e adiciona a linha com o candidato.
-    Se o Excel estiver aberto e travar o arquivo, salva em um arquivo de backup para não perder o dado!
-    """
+    """Salva os dados do candidato na planilha com contingência se o Excel estiver aberto."""
     arquivo_alvo = ARQUIVO_PLANILHA
+    colunas = [
+        "Data Cadastro", "Nome", "Telefone", "CNH", "EAR",
+        "Toxicologico", "Curso Coletivo Valido", "CNH Regular (<20pts)",
+        "Disponibilidade Escala", "Experiencia (anos)", "Pontuacao (0-100)",
+        "Vaga Recomendada", "Status Triagem"
+    ]
+    linha = [
+        candidato["data_hora"], candidato["nome"], candidato["telefone"],
+        candidato["cnh"], candidato["ear"], candidato["toxicologico"],
+        candidato["curso_coletivo"], candidato["pontos_cnh"], candidato["disp_escala"],
+        candidato["anos_exp"], candidato["pontos"], candidato["vaga_recomendada"],
+        candidato["status"]
+    ]
+
     try:
         existe = os.path.exists(arquivo_alvo)
         with open(arquivo_alvo, mode="a", newline="", encoding="utf-8-sig") as f:
             escritor = csv.writer(f, delimiter=";")
             if not existe:
-                escritor.writerow([
-                    "Data Cadastro", "Nome", "Telefone", "CNH", "EAR",
-                    "Toxicologico", "Curso Coletivo Valido", "Experiencia (anos)",
-                    "Pontuacao (0-100)", "Vaga Recomendada", "Status Triagem"
-                ])
-            escritor.writerow([
-                candidato["data_hora"],
-                candidato["nome"],
-                candidato["telefone"],
-                candidato["cnh"],
-                candidato["ear"],
-                candidato["toxicologico"],
-                candidato["curso_coletivo"],
-                candidato["anos_exp"],
-                candidato["pontos"],
-                candidato["vaga_recomendada"],
-                candidato["status"]
-            ])
+                escritor.writerow(colunas)
+            escritor.writerow(linha)
     except PermissionError:
-        # Se o Excel estiver bloqueando o arquivo principal, salvamos num arquivo alternativo temporário
         arquivo_backup = os.path.join(DIRETORIO_SCRIPT, "candidatos_fila_pendente.csv")
         existe_bkp = os.path.exists(arquivo_backup)
         with open(arquivo_backup, mode="a", newline="", encoding="utf-8-sig") as f:
             escritor = csv.writer(f, delimiter=";")
             if not existe_bkp:
-                escritor.writerow([
-                    "Data Cadastro", "Nome", "Telefone", "CNH", "EAR",
-                    "Toxicologico", "Curso Coletivo Valido", "Experiencia (anos)",
-                    "Pontuacao (0-100)", "Vaga Recomendada", "Status Triagem"
-                ])
-            escritor.writerow([
-                candidato["data_hora"],
-                candidato["nome"],
-                candidato["telefone"],
-                candidato["cnh"],
-                candidato["ear"],
-                candidato["toxicologico"],
-                candidato["curso_coletivo"],
-                candidato["anos_exp"],
-                candidato["pontos"],
-                candidato["vaga_recomendada"],
-                candidato["status"]
-            ])
-        print(f"⚠️ Atenção: A planilha principal estava aberta no Excel! Os dados foram salvos com segurança em '{arquivo_backup}'.")
+                escritor.writerow(colunas)
+            escritor.writerow(linha)
 
-def avaliar_candidato(nome, telefone, cnh, ear, toxicologico, curso_coletivo, anos_exp):
+def avaliar_candidato(nome, telefone, cnh, ear, toxicologico, curso_coletivo, pontos_cnh, disp_escala, anos_exp):
     motivo_descarte = ""
     if cnh not in ["D", "E"]:
         motivo_descarte = "CNH incompatível (Necessário CNH D ou E)"
@@ -74,6 +53,8 @@ def avaliar_candidato(nome, telefone, cnh, ear, toxicologico, curso_coletivo, an
         motivo_descarte = "Não possui EAR na CNH"
     elif toxicologico != "S":
         motivo_descarte = "Exame toxicológico pendente ou vencido"
+    elif pontos_cnh != "S":
+        motivo_descarte = "CNH irregular (excesso de pontos ou suspensão ativa no Detran)"
 
     pontos = 0
     vaga_recomendada = ""
@@ -85,14 +66,17 @@ def avaliar_candidato(nome, telefone, cnh, ear, toxicologico, curso_coletivo, an
         vaga_recomendada = "Nenhuma no momento"
         status = f"🔴 REPROVADO ({motivo_descarte})"
         mensagem_candidato = f"""
-            Olá, <strong>{nome}</strong>! Agradecemos sinceramente seu interesse em fazer parte da nossa empresa.<br><br>
-            Neste momento, nossas oportunidades exigem habilitação profissional categoria D ou E com EAR e Toxicológico em dia.<br><br>
+            Olá, <strong>{nome}</strong>! Agradecemos sinceramente seu interesse na empresa.<br><br>
+            Neste momento, os requisitos legais e operacionais exigem CNH D ou E regularizada, EAR, exame toxicológico em dia e pontuação compatível.<br><br>
             Guardaremos seu registro em nosso banco de talentos para futuras oportunidades.
         """
     else:
-        # Se os documentos básicos estão em dia:
+        # Bônus por flexibilidade de escala
+        if disp_escala == "S":
+            pontos += 15
+
         if anos_exp == 0:
-            pontos = 65
+            pontos += 50
             if curso_coletivo == "S":
                 pontos += 10
             vaga_recomendada = "Manobrista de Garagem / Pátio"
@@ -100,12 +84,18 @@ def avaliar_candidato(nome, telefone, cnh, ear, toxicologico, curso_coletivo, an
             mensagem_candidato = f"""
                 Olá, <strong>{nome}</strong>! 🎉<br><br>
                 Temos uma ótima notícia: seu perfil foi pré-selecionado para a vaga de <strong>Manobrista de Garagem / Pátio</strong>!<br><br>
-                Sabemos da sua vontade de ingressar na área e valorizamos quem quer começar conosco.<br><br>
-                <strong>Nosso time de Recursos Humanos entrará em contato pelo WhatsApp ({telefone})</strong> nos próximos dias para agendar sua entrevista e teste de pátio.
+                Sabemos da sua vontade de ingressar no setor de transporte coletivo e valorizamos quem quer começar na garagem.<br><br>
+                <strong>Nosso time de RH entrará em contato pelo WhatsApp ({telefone})</strong> nos próximos dias para agendar sua entrevista e teste prático de pátio.
             """
         else:
-            pontos = 50 if anos_exp >= 5 else (35 if anos_exp >= 2 else 20)
-            pontos += 20 if cnh == "E" else 15
+            if anos_exp >= 5:
+                pontos += 40
+            elif anos_exp >= 2:
+                pontos += 25
+            else:
+                pontos += 15
+            
+            pontos += 15 if cnh == "E" else 10
 
             if curso_coletivo == "S":
                 pontos += 30
@@ -114,18 +104,18 @@ def avaliar_candidato(nome, telefone, cnh, ear, toxicologico, curso_coletivo, an
                 mensagem_candidato = f"""
                     Olá, <strong>{nome}</strong>! Parabéns! 🚍👏<br><br>
                     Seu perfil foi <strong>aprovado na triagem inicial</strong> para a posição de <strong>Motorista de Transporte Coletivo</strong>!<br><br>
-                    Sua experiência comprovada e a habilitação com curso de passageiros em dia atendem perfeitamente aos nossos requisitos operacionais.<br><br>
-                    <strong>O setor de RH entrará em contato pelo telefone/WhatsApp ({telefone})</strong> para dar início ao processo seletivo e agendar o teste prático!
+                    Sua pontuação na CNH regular, experiência comprovada e curso de passageiros em dia atendem perfeitamente aos requisitos da nossa frota.<br><br>
+                    <strong>O setor de RH entrará em contato pelo telefone/WhatsApp ({telefone})</strong> para dar início ao processo seletivo e agendamento de teste prático!
                 """
             else:
                 pontos += 5
-                vaga_recomendada = "Manobrista / Apoio de Cargas (Pendente Curso Passageiros)"
+                vaga_recomendada = "Manobrista / Apoio Operacional"
                 status = "🟠 INDICADO P/ MANOBRISTA (Falta Curso Coletivo)"
                 mensagem_candidato = f"""
                     Olá, <strong>{nome}</strong>! Agradecemos sua inscrição.<br><br>
-                    Identificamos sua experiência ao volante, porém para conduzir veículos com passageiros a legislação exige o Curso de Transporte Coletivo.<br><br>
-                    Seu perfil foi direcionado para oportunidades de <strong>Manobrista / Apoio Operacional</strong>.<br><br>
-                    <strong>Nosso RH entrará em contato pelo WhatsApp ({telefone})</strong> para apresentar as opções disponíveis!
+                    Identificamos sua experiência, porém para conduzir coletivos na rua é exigido o Curso de Transporte Coletivo (Resolução Contran).<br><br>
+                    Seu perfil foi direcionado para oportunidades internas de <strong>Manobrista / Garagem</strong>.<br><br>
+                    <strong>Nosso RH entrará em contato pelo WhatsApp ({telefone})</strong> para apresentar as opções!
                 """
 
     return {
@@ -136,6 +126,8 @@ def avaliar_candidato(nome, telefone, cnh, ear, toxicologico, curso_coletivo, an
         "ear": ear,
         "toxicologico": toxicologico,
         "curso_coletivo": curso_coletivo,
+        "pontos_cnh": pontos_cnh,
+        "disp_escala": disp_escala,
         "anos_exp": anos_exp,
         "pontos": pontos,
         "vaga_recomendada": vaga_recomendada,
@@ -215,6 +207,18 @@ HTML_FORMULARIO = """<!DOCTYPE html>
                 <option value="N">Não possuo este curso</option>
             </select>
 
+            <label>Situação da CNH (Pontuação & Histórico):</label>
+            <select name="pontos_cnh" required>
+                <option value="S">CNH regular (menos de 20 pontos e sem processo de suspensão)</option>
+                <option value="N">CNH com excesso de pontos ou bloqueio no Detran</option>
+            </select>
+
+            <label>Disponibilidade para Escala de Revezamento (Madrugada / Finais de Semana / 6x1):</label>
+            <select name="disp_escala" required>
+                <option value="S">Sim, total disponibilidade de horário</option>
+                <option value="N">Não possuo flexibilidade para escala noturna/fim de semana</option>
+            </select>
+
             <label>Quantos anos de experiência como motorista?</label>
             <input type="number" name="anos_exp" value="0" min="0" max="40" required>
             <div class="hint">💡 Se você não tem experiência de estrada, sem problemas! Podemos aproveitar seu perfil para a vaga de Manobrista de Garagem.</div>
@@ -282,20 +286,17 @@ class ServidorTrabalheConosco(BaseHTTPRequestHandler):
             ear = dados.get("ear", ["N"])[0].strip().upper()
             toxicologico = dados.get("toxicologico", ["N"])[0].strip().upper()
             curso_coletivo = dados.get("curso_coletivo", ["N"])[0].strip().upper()
+            pontos_cnh = dados.get("pontos_cnh", ["S"])[0].strip().upper()
+            disp_escala = dados.get("disp_escala", ["S"])[0].strip().upper()
             try:
                 anos_exp = int(dados.get("anos_exp", [0])[0])
             except ValueError:
                 anos_exp = 0
 
-            # 1. Avalia candidato com as regras de RH
-            candidato = avaliar_candidato(nome, telefone, cnh, ear, toxicologico, curso_coletivo, anos_exp)
-
-            # 2. Salva na planilha CSV
+            candidato = avaliar_candidato(nome, telefone, cnh, ear, toxicologico, curso_coletivo, pontos_cnh, disp_escala, anos_exp)
             salvar_na_planilha(candidato)
 
-            # 3. Monta a resposta HTML substituindo as tags com segurança
             badge_class = "badge-green" if "🟢" in candidato["status"] else ("badge-blue" if "🔵" in candidato["status"] else "badge-red")
-            
             html_final = (
                 HTML_RESPOSTA
                 .replace("{{BADGE_CLASS}}", badge_class)
@@ -316,10 +317,10 @@ class ServidorTrabalheConosco(BaseHTTPRequestHandler):
 
 def iniciar_servidor(porta=5000):
     servidor = HTTPServer(("0.0.0.0", porta), ServidorTrabalheConosco)
-    print("=" * 70)
-    print(f" 🌐 PORTAL TRABALHE CONOSCO NO AR!")
+    print("=" * 72)
+    print(f" 🌐 PORTAL TRABALHE CONOSCO ATUALIZADO NO AR!")
     print(f" 👉 Abra no navegador: http://localhost:{porta}")
-    print("=" * 70)
+    print("=" * 72)
     print("Pressione CTRL + C no terminal quando desejar parar o servidor.")
     try:
         servidor.serve_forever()
