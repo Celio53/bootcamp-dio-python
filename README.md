@@ -51,7 +51,9 @@ flowchart LR
 ├── recursos.md               <- Links, referências e ferramentas divididos por semana.
 ├── anotacoes/                <- Diários de estudo e anotações semanais.
 │   └── semana-01.md          <- Modelo padrão da Semana 1 (duplicável para 02, 03, etc.).
-└── Transição para Análise de Dados.pdf <- Documento base original do copiloto.
+├── pratica/                  <- Scripts práticos desenvolvidos durante os estudos.
+└── projetos/                 <- Desafios de projeto e portfólio prático.
+    └── lab-natty-or-not/     <- Desafio DIO: Manual de Sobrevivência do Atendimento (IA Generativa).
 ```
 
 ---
