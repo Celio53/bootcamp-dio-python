@@ -52,6 +52,8 @@ flowchart LR
 ├── anotacoes/                <- Diários de estudo e anotações semanais.
 │   └── semana-01.md          <- Modelo padrão da Semana 1 (duplicável para 02, 03, etc.).
 ├── pratica/                  <- Scripts práticos desenvolvidos durante os estudos.
+├── desafios-codigo/          <- Resoluções comentadas de Desafios de Código da DIO.
+│   └── 01-media-final-aluno/ <- Desafio: Média Final do Aluno (JS & Python).
 └── projetos/                 <- Desafios de projeto e portfólio prático.
     └── lab-natty-or-not/     <- Desafio DIO: Manual de Sobrevivência do Atendimento (IA Generativa).
 ```
